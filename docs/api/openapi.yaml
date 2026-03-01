@@ -1,0 +1,9 @@
+# BBB Meeting Management System — OpenAPI Contract
+# This file will be populated by the Orchestrator agent in Sprint 0.
+# All agents should reference this file for API contract definitions.
+openapi: '3.0.3'
+info:
+  title: BBB Meeting Management API
+  version: 0.1.0
+  description: API contract for the BBB Meeting Management System
+paths: {}

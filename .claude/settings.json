@@ -1,0 +1,11 @@
+{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "mcpServers": {
+    "postgres": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-postgres", "postgresql://bbb_admin:CAMBIAME_en_produccion_2024@localhost:5432/bbb_management"]
+    }
+  }
+}
