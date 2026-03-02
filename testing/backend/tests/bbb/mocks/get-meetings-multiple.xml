@@ -1,0 +1,39 @@
+<response>
+  <returncode>SUCCESS</returncode>
+  <meetings>
+    <meeting>
+      <meetingName>Meeting One</meetingName>
+      <meetingID>meeting-1</meetingID>
+      <internalMeetingID>int-1</internalMeetingID>
+      <running>true</running>
+      <participantCount>3</participantCount>
+      <moderatorCount>1</moderatorCount>
+      <listenerCount>2</listenerCount>
+      <voiceParticipantCount>3</voiceParticipantCount>
+      <videoCount>1</videoCount>
+      <hasUserJoined>true</hasUserJoined>
+      <recording>false</recording>
+      <startTime>1709280000000</startTime>
+      <endTime>0</endTime>
+      <duration>0</duration>
+      <attendees></attendees>
+    </meeting>
+    <meeting>
+      <meetingName>Meeting Two</meetingName>
+      <meetingID>meeting-2</meetingID>
+      <internalMeetingID>int-2</internalMeetingID>
+      <running>false</running>
+      <participantCount>0</participantCount>
+      <moderatorCount>0</moderatorCount>
+      <listenerCount>0</listenerCount>
+      <voiceParticipantCount>0</voiceParticipantCount>
+      <videoCount>0</videoCount>
+      <hasUserJoined>false</hasUserJoined>
+      <recording>false</recording>
+      <startTime>1709280000000</startTime>
+      <endTime>1709281000000</endTime>
+      <duration>60</duration>
+      <attendees></attendees>
+    </meeting>
+  </meetings>
+</response>

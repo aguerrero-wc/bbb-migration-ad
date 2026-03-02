@@ -1,9 +1,886 @@
 # BBB Meeting Management System — OpenAPI Contract
-# This file will be populated by the Orchestrator agent in Sprint 0.
-# All agents should reference this file for API contract definitions.
+# Owner: Orchestrator (Agent 0)
+# All agents MUST reference this file for API contract definitions.
 openapi: '3.0.3'
 info:
   title: BBB Meeting Management API
-  version: 0.1.0
+  version: 0.2.0
   description: API contract for the BBB Meeting Management System
-paths: {}
+
+servers:
+  - url: http://localhost:4000
+    description: Development server
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ═══════════════════════════════════════
+  # Auth — Sprint 1
+  # ═══════════════════════════════════════
+
+  /api/auth/register:
+    post:
+      operationId: register
+      summary: Register a new user account
+      description: Creates a new user with role 'viewer' and returns tokens for auto-login.
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User created successfully with auto-login tokens
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSuccessResponse'
+        '409':
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/login:
+    post:
+      operationId: login
+      summary: Authenticate with email and password
+      description: |
+        Returns JWT access token and opaque refresh token.
+        Account locks after 5 consecutive failures for 15 minutes.
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSuccessResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '423':
+          description: Account temporarily locked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/refresh:
+    post:
+      operationId: refreshTokens
+      summary: Refresh access token using refresh token
+      description: Implements refresh token rotation.
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Tokens refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSuccessResponse'
+        '401':
+          description: Invalid, expired, or revoked refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/logout:
+    post:
+      operationId: logout
+      summary: Revoke refresh token
+      description: Marks the provided refresh token as revoked. Requires valid Bearer token.
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutSuccessResponse'
+        '401':
+          description: Missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/me:
+    get:
+      operationId: getProfile
+      summary: Get current user profile
+      description: Returns the authenticated user's profile. Never includes passwordHash.
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileSuccessResponse'
+        '401':
+          description: Missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ═══════════════════════════════════════
+  # Rooms — Sprint 2
+  # ═══════════════════════════════════════
+
+  /api/rooms:
+    get:
+      operationId: listRooms
+      summary: List rooms with pagination
+      tags: [Rooms]
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Case-insensitive search on room name
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [active, inactive]
+      responses:
+        '200':
+          description: Paginated list of rooms
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomListResponse'
+        '401':
+          description: Missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      operationId: createRoom
+      summary: Create a new room
+      description: Creates a room in the database and registers it with the BBB server.
+      tags: [Rooms]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoomRequest'
+      responses:
+        '201':
+          description: Room created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomSingleResponse'
+        '401':
+          description: Missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Insufficient role (requires admin or moderator)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: BBB server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/rooms/{id}:
+    get:
+      operationId: getRoom
+      summary: Get room details
+      tags: [Rooms]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Room details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomSingleResponse'
+        '401':
+          description: Missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Room not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      operationId: updateRoom
+      summary: Update room configuration
+      tags: [Rooms]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRoomRequest'
+      responses:
+        '200':
+          description: Room updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomSingleResponse'
+        '401':
+          description: Missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Insufficient role (requires admin or moderator)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Room not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      operationId: deleteRoom
+      summary: Delete a room
+      description: Deletes a room. Ends BBB meeting if currently running.
+      tags: [Rooms]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Room deleted successfully
+        '401':
+          description: Missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Insufficient role (requires admin)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Room not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/rooms/{id}/join:
+    post:
+      operationId: joinRoom
+      summary: Join a room
+      description: Creates the BBB meeting if needed and returns a join URL for the user.
+      tags: [Rooms]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Join URL generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JoinRoomResponse'
+        '401':
+          description: Missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Room not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: BBB server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/rooms/{id}/status:
+    get:
+      operationId: getRoomStatus
+      summary: Get real-time room status from BBB
+      tags: [Rooms]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Room status from BBB server
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomStatusResponse'
+        '401':
+          description: Missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Room not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: BBB server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ═══════════════════════════════════════
+  # Health — Sprint 0
+  # ═══════════════════════════════════════
+
+  /api/health:
+    get:
+      operationId: healthCheck
+      summary: Health check endpoint
+      tags: [Health]
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        example: ok
+                      timestamp:
+                        type: string
+                        format: date-time
+                      database:
+                        type: string
+                        enum: [connected, disconnected]
+                  meta:
+                    $ref: '#/components/schemas/ResponseMeta'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # ─── Auth Request DTOs ───
+
+    RegisterRequest:
+      type: object
+      required: [email, password, firstName, lastName]
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          format: password
+          minLength: 8
+          description: 'Must contain: uppercase, lowercase, number, special character'
+          example: 'P@ssw0rd!'
+        firstName:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: John
+        lastName:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: Doe
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: 'P@ssw0rd!'
+
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+          description: Opaque refresh token received from login/register/refresh
+
+    LogoutRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+          description: Refresh token to revoke
+
+    # ─── Auth Response DTOs ───
+
+    AuthSuccessResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          required: [user, accessToken, refreshToken, expiresIn]
+          properties:
+            user:
+              $ref: '#/components/schemas/UserProfile'
+            accessToken:
+              type: string
+              description: JWT access token (HS256)
+            refreshToken:
+              type: string
+              description: Opaque refresh token (stored hashed in DB)
+            expiresIn:
+              type: integer
+              description: Access token expiry in seconds
+              example: 900
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+
+    LogoutSuccessResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            message:
+              type: string
+              example: Logged out successfully
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+
+    ProfileSuccessResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/UserProfile'
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+
+    UserProfile:
+      type: object
+      required: [id, email, firstName, lastName, role, isActive, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        role:
+          type: string
+          enum: [admin, moderator, viewer]
+        avatarUrl:
+          type: string
+          nullable: true
+        isActive:
+          type: boolean
+        lastLoginAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    # ─── Rooms Request DTOs ───
+
+    CreateRoomRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 255
+          example: Daily Standup
+        description:
+          type: string
+          nullable: true
+        welcomeMessage:
+          type: string
+          nullable: true
+        maxParticipants:
+          type: integer
+          minimum: 0
+          nullable: true
+        record:
+          type: boolean
+          default: false
+        autoStartRecording:
+          type: boolean
+          default: false
+        muteOnStart:
+          type: boolean
+          default: false
+        webcamsOnlyForModerator:
+          type: boolean
+          default: false
+        meetingLayout:
+          type: string
+          enum: [CUSTOM_LAYOUT, SMART_LAYOUT, PRESENTATION_FOCUS, VIDEO_FOCUS, CAMERAS_ONLY, PRESENTATION_ONLY, MEDIA_ONLY]
+          default: CUSTOM_LAYOUT
+        guestPolicy:
+          type: string
+          enum: [ALWAYS_ACCEPT, ALWAYS_DENY, ASK_MODERATOR]
+          default: ALWAYS_ACCEPT
+        disabledFeatures:
+          type: array
+          items:
+            type: string
+          nullable: true
+
+    UpdateRoomRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 255
+        description:
+          type: string
+          nullable: true
+        welcomeMessage:
+          type: string
+          nullable: true
+        maxParticipants:
+          type: integer
+          minimum: 0
+          nullable: true
+        record:
+          type: boolean
+        autoStartRecording:
+          type: boolean
+        muteOnStart:
+          type: boolean
+        webcamsOnlyForModerator:
+          type: boolean
+        meetingLayout:
+          type: string
+          enum: [CUSTOM_LAYOUT, SMART_LAYOUT, PRESENTATION_FOCUS, VIDEO_FOCUS, CAMERAS_ONLY, PRESENTATION_ONLY, MEDIA_ONLY]
+        guestPolicy:
+          type: string
+          enum: [ALWAYS_ACCEPT, ALWAYS_DENY, ASK_MODERATOR]
+        disabledFeatures:
+          type: array
+          items:
+            type: string
+          nullable: true
+        imageUrl:
+          type: string
+          format: uri
+          nullable: true
+
+    # ─── Rooms Response DTOs ───
+
+    RoomData:
+      type: object
+      required: [id, name, meetingId, record, autoStartRecording, muteOnStart, webcamsOnlyForModerator, meetingLayout, guestPolicy, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        meetingId:
+          type: string
+        imageUrl:
+          type: string
+          nullable: true
+        welcomeMessage:
+          type: string
+          nullable: true
+        maxParticipants:
+          type: integer
+          nullable: true
+        record:
+          type: boolean
+        autoStartRecording:
+          type: boolean
+        muteOnStart:
+          type: boolean
+        webcamsOnlyForModerator:
+          type: boolean
+        meetingLayout:
+          type: string
+        guestPolicy:
+          type: string
+        disabledFeatures:
+          type: array
+          items:
+            type: string
+          nullable: true
+        status:
+          type: string
+          enum: [active, inactive]
+        createdBy:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            firstName:
+              type: string
+            lastName:
+              type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    RoomSingleResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/RoomData'
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+
+    RoomListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/RoomData'
+        meta:
+          type: object
+          properties:
+            timestamp:
+              type: string
+              format: date-time
+            pagination:
+              $ref: '#/components/schemas/PaginationMeta'
+
+    PaginationMeta:
+      type: object
+      required: [page, limit, total, totalPages]
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+
+    JoinRoomResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          required: [joinUrl]
+          properties:
+            joinUrl:
+              type: string
+              format: uri
+              description: BBB join URL — redirect user to this URL
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+
+    RoomStatusResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/RoomStatusData'
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+
+    RoomStatusData:
+      type: object
+      required: [isRunning, participantCount, moderatorCount, listenerCount, voiceParticipantCount, videoCount, hasUserJoined, recording, duration]
+      properties:
+        isRunning:
+          type: boolean
+        participantCount:
+          type: integer
+        moderatorCount:
+          type: integer
+        listenerCount:
+          type: integer
+        voiceParticipantCount:
+          type: integer
+        videoCount:
+          type: integer
+        hasUserJoined:
+          type: boolean
+        recording:
+          type: boolean
+        startTime:
+          type: integer
+          nullable: true
+          description: Unix timestamp in milliseconds
+        duration:
+          type: integer
+          description: Duration in seconds
+
+    # ─── Shared ───
+
+    ResponseMeta:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      required: [statusCode, message, error, timestamp, path]
+      properties:
+        statusCode:
+          type: integer
+        message:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+        error:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        path:
+          type: string

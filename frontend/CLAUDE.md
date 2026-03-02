@@ -53,6 +53,10 @@ NO modificas archivos fuera de `frontend/`.
 - Lazy loading para feature modules
 - Formularios validados con schemas Zod
 - Responsive: mobile-first (375px, 768px, 1280px breakpoints)
+- Naming: PascalCase para componentes, camelCase para hooks/utils, kebab-case para archivos, UPPER_SNAKE_CASE para env vars
+- Imports ordenados: externos (react, libs) → internos (shared/, features/) → relativos (./)
+- No console.log residuales, no `// TODO` sin ticket asociado, no código comentado
+- Cambios fuera de `frontend/` → solicitar via `docs/specs/schema-requests/`
 
 ## Contrato API
 Lee el contrato de: `docs/api/openapi.yaml`

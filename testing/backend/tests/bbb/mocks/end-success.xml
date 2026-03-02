@@ -1,0 +1,5 @@
+<response>
+  <returncode>SUCCESS</returncode>
+  <messageKey>sentEndMeetingRequest</messageKey>
+  <message>A request to end the meeting was sent.</message>
+</response>

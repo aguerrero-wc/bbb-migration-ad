@@ -1,0 +1,333 @@
+# Auth API Contract — Sprint 1
+# Owner: Orchestrator (Agent 0)
+# Consumers: NestJS+DB (Agent 2), Auth/Security (Agent 3), React Dev (Agent 1)
+openapi: '3.0.3'
+info:
+  title: BBB Auth API Contract
+  version: 1.0.0
+  description: Authentication endpoints for the BBB Meeting Management System
+
+paths:
+  /api/auth/register:
+    post:
+      operationId: register
+      summary: Register a new user account
+      description: Creates a new user with role 'viewer' and returns tokens for auto-login.
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User created successfully with auto-login tokens
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSuccessResponse'
+        '409':
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                statusCode: 409
+                message: Email already registered
+                error: Conflict
+                timestamp: '2026-03-01T12:00:00.000Z'
+                path: /api/auth/register
+        '422':
+          description: Validation error (invalid email, weak password, etc.)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/login:
+    post:
+      operationId: login
+      summary: Authenticate with email and password
+      description: |
+        Returns JWT access token and opaque refresh token.
+        Tracks failed attempts — account locks after 5 consecutive failures for 15 minutes.
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSuccessResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                statusCode: 401
+                message: Invalid credentials
+                error: Unauthorized
+                timestamp: '2026-03-01T12:00:00.000Z'
+                path: /api/auth/login
+        '423':
+          description: Account temporarily locked due to too many failed attempts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                statusCode: 423
+                message: Account temporarily locked. Try again in 15 minutes.
+                error: Locked
+                timestamp: '2026-03-01T12:00:00.000Z'
+                path: /api/auth/login
+
+  /api/auth/refresh:
+    post:
+      operationId: refreshTokens
+      summary: Refresh access token using refresh token
+      description: |
+        Implements refresh token rotation: the provided refresh token is revoked
+        and a new pair (access + refresh) is issued.
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Tokens refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSuccessResponse'
+        '401':
+          description: Invalid, expired, or revoked refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/logout:
+    post:
+      operationId: logout
+      summary: Revoke refresh token
+      description: Marks the provided refresh token as revoked. Requires valid Bearer token.
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      message:
+                        type: string
+                        example: Logged out successfully
+                  meta:
+                    $ref: '#/components/schemas/ResponseMeta'
+        '401':
+          description: Missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/me:
+    get:
+      operationId: getProfile
+      summary: Get current user profile
+      description: Returns the authenticated user's profile. Never includes passwordHash.
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/UserProfile'
+                  meta:
+                    $ref: '#/components/schemas/ResponseMeta'
+        '401':
+          description: Missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [email, password, firstName, lastName]
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          format: password
+          minLength: 8
+          description: 'Must contain: uppercase, lowercase, number, special character'
+          example: 'P@ssw0rd!'
+        firstName:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: John
+        lastName:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: Doe
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: 'P@ssw0rd!'
+
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+          description: Opaque refresh token received from login/register/refresh
+
+    LogoutRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+          description: Refresh token to revoke
+
+    AuthSuccessResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          required: [user, accessToken, refreshToken, expiresIn]
+          properties:
+            user:
+              $ref: '#/components/schemas/UserProfile'
+            accessToken:
+              type: string
+              description: JWT access token (HS256)
+            refreshToken:
+              type: string
+              description: Opaque refresh token (stored hashed in DB)
+            expiresIn:
+              type: integer
+              description: Access token expiry in seconds
+              example: 900
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+
+    UserProfile:
+      type: object
+      required: [id, email, firstName, lastName, role, isActive, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        role:
+          type: string
+          enum: [admin, moderator, viewer]
+        avatarUrl:
+          type: string
+          nullable: true
+        isActive:
+          type: boolean
+        lastLoginAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ResponseMeta:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      required: [statusCode, message, error, timestamp, path]
+      properties:
+        statusCode:
+          type: integer
+        message:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+        error:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        path:
+          type: string

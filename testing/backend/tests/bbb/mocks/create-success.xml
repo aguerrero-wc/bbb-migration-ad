@@ -1,0 +1,12 @@
+<response>
+  <returncode>SUCCESS</returncode>
+  <meetingID>test-meeting-id</meetingID>
+  <internalMeetingID>abc123def456</internalMeetingID>
+  <attendeePW>ap</attendeePW>
+  <moderatorPW>mp</moderatorPW>
+  <createTime>1709280000000</createTime>
+  <voiceBridge>70001</voiceBridge>
+  <hasBeenForciblyEnded>false</hasBeenForciblyEnded>
+  <messageKey>duplicateWarning</messageKey>
+  <message>This conference was already in progress.</message>
+</response>

@@ -1,0 +1,18 @@
+<response>
+  <returncode>SUCCESS</returncode>
+  <meetingName>Test Meeting</meetingName>
+  <meetingID>test-meeting-id</meetingID>
+  <internalMeetingID>abc123def456</internalMeetingID>
+  <running>false</running>
+  <participantCount>0</participantCount>
+  <moderatorCount>0</moderatorCount>
+  <listenerCount>0</listenerCount>
+  <voiceParticipantCount>0</voiceParticipantCount>
+  <videoCount>0</videoCount>
+  <hasUserJoined>false</hasUserJoined>
+  <recording>false</recording>
+  <startTime>1709280000000</startTime>
+  <endTime>0</endTime>
+  <duration>0</duration>
+  <attendees></attendees>
+</response>

@@ -1,0 +1,27 @@
+<response>
+  <returncode>SUCCESS</returncode>
+  <meetingName>Test Meeting</meetingName>
+  <meetingID>test-meeting-id</meetingID>
+  <internalMeetingID>abc123def456</internalMeetingID>
+  <running>true</running>
+  <participantCount>1</participantCount>
+  <moderatorCount>1</moderatorCount>
+  <listenerCount>0</listenerCount>
+  <voiceParticipantCount>1</voiceParticipantCount>
+  <videoCount>0</videoCount>
+  <hasUserJoined>true</hasUserJoined>
+  <recording>false</recording>
+  <startTime>1709280000000</startTime>
+  <endTime>0</endTime>
+  <duration>0</duration>
+  <attendees>
+    <attendee>
+      <userID>user1</userID>
+      <fullName>Solo User</fullName>
+      <role>MODERATOR</role>
+      <isPresenter>true</isPresenter>
+      <hasJoinedVoice>true</hasJoinedVoice>
+      <hasVideo>false</hasVideo>
+    </attendee>
+  </attendees>
+</response>

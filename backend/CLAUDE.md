@@ -17,6 +17,7 @@ TODO tu código será auditado por agentes basados en **OpenAI Codex GPT-5.x**. 
 - @nestjs/swagger para documentación API
 - fast-xml-parser para respuestas BBB
 - Node.js 20+
+- Passport.js con JWT (RS256)
 
 ## Arquitectura NestJS — Modular
 ```
@@ -50,6 +51,106 @@ Eres dueño de TODOS los archivos en `backend/` EXCEPTO:
 Creas y modificas migrations para: `users`, `rooms`, `reservations`, `room_participants`, `recordings`
 El agente Auth/Security controla: `refresh_tokens`, `audit_logs`
 
+### Esquema PostgreSQL — DDL de Referencia
+
+```sql
+-- Users (auth + perfil)
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    first_name VARCHAR(100) NOT NULL,
+    last_name VARCHAR(100) NOT NULL,
+    role VARCHAR(20) NOT NULL DEFAULT 'viewer',
+    avatar_url VARCHAR(500),
+    is_active BOOLEAN DEFAULT true,
+    last_login_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Rooms (salas BBB con config local)
+CREATE TABLE rooms (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    meeting_id VARCHAR(256) UNIQUE NOT NULL,
+    image_url VARCHAR(500),
+    welcome_message TEXT,
+    max_participants INTEGER,
+    record BOOLEAN DEFAULT false,
+    auto_start_recording BOOLEAN DEFAULT false,
+    mute_on_start BOOLEAN DEFAULT false,
+    webcams_only_for_moderator BOOLEAN DEFAULT false,
+    lock_settings JSONB DEFAULT '{}',
+    disabled_features TEXT[],
+    meeting_layout VARCHAR(50) DEFAULT 'CUSTOM_LAYOUT',
+    guest_policy VARCHAR(20) DEFAULT 'ALWAYS_ACCEPT',
+    meta JSONB DEFAULT '{}',
+    status VARCHAR(20) DEFAULT 'inactive',
+    created_by UUID REFERENCES users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Reservations (con exclusión de overlap a nivel DB)
+CREATE TABLE reservations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    room_id UUID REFERENCES rooms(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    start_time TIMESTAMP WITH TIME ZONE NOT NULL,
+    end_time TIMESTAMP WITH TIME ZONE NOT NULL,
+    recurrence_rule VARCHAR(255),
+    created_by UUID REFERENCES users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    CONSTRAINT no_overlap EXCLUDE USING gist (
+        room_id WITH =,
+        tstzrange(start_time, end_time) WITH &&
+    )
+);
+
+-- Room Participants (tracking de sesiones)
+CREATE TABLE room_participants (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    room_id UUID REFERENCES rooms(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id),
+    bbb_internal_user_id VARCHAR(255),
+    joined_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    left_at TIMESTAMP WITH TIME ZONE,
+    role VARCHAR(20) NOT NULL,
+    is_presenter BOOLEAN DEFAULT false
+);
+
+-- Recordings (sync con BBB)
+CREATE TABLE recordings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    room_id UUID REFERENCES rooms(id) ON DELETE SET NULL,
+    bbb_record_id VARCHAR(255) UNIQUE NOT NULL,
+    bbb_internal_meeting_id VARCHAR(255),
+    name VARCHAR(255),
+    state VARCHAR(20) DEFAULT 'processing',
+    published BOOLEAN DEFAULT false,
+    start_time TIMESTAMP WITH TIME ZONE,
+    end_time TIMESTAMP WITH TIME ZONE,
+    participants_count INTEGER,
+    playback_url VARCHAR(500),
+    playback_format VARCHAR(50),
+    duration_seconds INTEGER,
+    size_bytes BIGINT,
+    thumbnails JSONB DEFAULT '[]',
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```
+
+**Tablas de Auth/Security (referencia — NO son tu dominio):**
+```sql
+-- refresh_tokens: controlada por Agente Auth/Security
+-- audit_logs: controlada por Agente Auth/Security
+```
+
 ## Estándares de Código
 - Cada método de servicio DEBE tener JSDoc con @param y @returns
 - Todos los endpoints DEBEN tener decoradores Swagger
@@ -58,12 +159,32 @@ El agente Auth/Security controla: `refresh_tokens`, `audit_logs`
 - Transactions para operaciones multi-tabla
 - Índices en todas las foreign keys y columnas consultadas frecuentemente
 - No SQL raw salvo que sea absolutamente necesario (usar QueryBuilder)
+- Naming: PascalCase para clases (Services, Controllers, Entities, DTOs), camelCase para métodos/variables, kebab-case para archivos, UPPER_SNAKE_CASE para env vars
+- Imports ordenados: externos (@nestjs/*, libs) → internos (common/, modules/) → relativos (./)
+- No console.log residuales, no `// TODO` sin ticket asociado, no código comentado
+- Cambios fuera de `backend/` o en paths de Auth/Security → solicitar via `docs/specs/schema-requests/`
+
+## Variables de Entorno
+Referencia completa: `.env.example` en la raíz del proyecto.
+
+Variables que este agente usa directamente:
+- `BBB_SERVER_URL` — URL del servidor BigBlueButton
+- `BBB_SECRET` — shared secret para checksum BBB API
+- `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` — conexión PostgreSQL
+- `DATABASE_URL` — connection string completa (alternativa)
+- `BACKEND_PORT` — puerto del servidor NestJS (default: 4000)
+- `NODE_ENV` — entorno (development | production | test)
+- `CORS_ORIGIN` — origen permitido para CORS
+- `BCRYPT_ROUNDS` — factor de costo para hashing (default: 12)
+
+Variables controladas por Auth/Security (NO modificar):
+- `JWT_SECRET`, `JWT_REFRESH_SECRET`, `JWT_ACCESS_EXPIRY`, `JWT_REFRESH_EXPIRY`
+- `LEGACY_API_URL`, `LEGACY_API_KEY`
 
 ## Integración BBB API
 - Referencia: `docs/discovery/bbb-api-3.0-reference.md`
 - BBB usa respuestas XML — parsear con `fast-xml-parser`
 - Cálculo de checksum: SHA256(callName + queryString + secret)
-- Variables de entorno: `BBB_SERVER_URL`, `BBB_SECRET`
 
 ## Documentos de Referencia — LÉELOS
 - **Discovery report**: `docs/discovery/discovery-report.md` — análisis de la app legacy: endpoints existentes, patrones de API, estructura de datos

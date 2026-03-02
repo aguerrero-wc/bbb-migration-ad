@@ -3,6 +3,10 @@
     "playwright": {
       "command": "npx",
       "args": ["@anthropic/mcp-playwright"]
+    },
+    "react-mcp": {
+      "command": "npx",
+      "args": ["-y", "@smithery/cli@latest", "run", "@Streen9/react-mcp"]
     }
   },
   "permissions": {
@@ -10,7 +14,8 @@
       "Bash(npm:*)",
       "Bash(npx:*)",
       "Bash(node:*)",
-      "mcp__playwright__*"
+      "mcp__playwright__*",
+      "mcp__react-mcp__*"
     ]
   }
 }

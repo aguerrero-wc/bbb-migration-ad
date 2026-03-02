@@ -1,0 +1,224 @@
+# Rooms API Contract — Sprint 2
+# Owner: Orchestrator (Agent 0)
+# 7 endpoints for Room CRUD + BBB integration
+
+endpoints:
+
+  # ─── List Rooms ───
+  - method: GET
+    path: /api/rooms
+    auth: Bearer
+    roles: [admin, moderator, viewer]
+    summary: List rooms with pagination, search, and status filter
+    query_params:
+      page:
+        type: integer
+        default: 1
+        min: 1
+      limit:
+        type: integer
+        default: 20
+        min: 1
+        max: 100
+      search:
+        type: string
+        description: Case-insensitive search on room name
+      status:
+        type: string
+        enum: [active, inactive]
+    response: 200
+    response_body:
+      data:
+        type: array
+        items: RoomResponse
+      meta:
+        timestamp: string (ISO 8601)
+        pagination:
+          page: integer
+          limit: integer
+          total: integer
+          totalPages: integer
+
+  # ─── Get Room Detail ───
+  - method: GET
+    path: /api/rooms/:id
+    auth: Bearer
+    roles: [admin, moderator, viewer]
+    summary: Get room details by ID
+    path_params:
+      id: uuid
+    response: 200
+    response_body:
+      data: RoomResponse
+      meta:
+        timestamp: string
+
+  # ─── Create Room ───
+  - method: POST
+    path: /api/rooms
+    auth: Bearer
+    roles: [admin, moderator]
+    summary: Create a new room and register it with BBB
+    request_body: CreateRoomRequest
+    response: 201
+    response_body:
+      data: RoomResponse
+      meta:
+        timestamp: string
+
+  # ─── Update Room ───
+  - method: PATCH
+    path: /api/rooms/:id
+    auth: Bearer
+    roles: [admin, moderator]
+    summary: Update room configuration
+    path_params:
+      id: uuid
+    request_body: UpdateRoomRequest
+    response: 200
+    response_body:
+      data: RoomResponse
+      meta:
+        timestamp: string
+
+  # ─── Delete Room ───
+  - method: DELETE
+    path: /api/rooms/:id
+    auth: Bearer
+    roles: [admin]
+    summary: Delete a room (ends BBB meeting if running)
+    path_params:
+      id: uuid
+    response: 204
+
+  # ─── Join Room ───
+  - method: POST
+    path: /api/rooms/:id/join
+    auth: Bearer
+    roles: [admin, moderator, viewer]
+    summary: Join a room — creates BBB meeting if needed and returns join URL
+    path_params:
+      id: uuid
+    response: 200
+    response_body:
+      data:
+        joinUrl: string (BBB join URL for redirect)
+      meta:
+        timestamp: string
+
+  # ─── Get Room Status ───
+  - method: GET
+    path: /api/rooms/:id/status
+    auth: Bearer
+    roles: [admin, moderator, viewer]
+    summary: Get real-time room status from BBB server
+    path_params:
+      id: uuid
+    response: 200
+    response_body:
+      data: RoomStatusResponse
+      meta:
+        timestamp: string
+
+# ─── DTOs ───
+
+dtos:
+
+  CreateRoomRequest:
+    name:
+      type: string
+      required: true
+      minLength: 2
+      maxLength: 255
+    description:
+      type: string
+      required: false
+    welcomeMessage:
+      type: string
+      required: false
+    maxParticipants:
+      type: integer
+      required: false
+      min: 0
+    record:
+      type: boolean
+      required: false
+      default: false
+    autoStartRecording:
+      type: boolean
+      required: false
+      default: false
+    muteOnStart:
+      type: boolean
+      required: false
+      default: false
+    webcamsOnlyForModerator:
+      type: boolean
+      required: false
+      default: false
+    meetingLayout:
+      type: string
+      required: false
+      enum: [CUSTOM_LAYOUT, SMART_LAYOUT, PRESENTATION_FOCUS, VIDEO_FOCUS, CAMERAS_ONLY, PRESENTATION_ONLY, MEDIA_ONLY]
+      default: CUSTOM_LAYOUT
+    guestPolicy:
+      type: string
+      required: false
+      enum: [ALWAYS_ACCEPT, ALWAYS_DENY, ASK_MODERATOR]
+      default: ALWAYS_ACCEPT
+    disabledFeatures:
+      type: array
+      items: string
+      required: false
+
+  UpdateRoomRequest:
+    extends: Partial<CreateRoomRequest>
+    additional:
+      imageUrl:
+        type: string
+        format: url
+        required: false
+
+  RoomResponse:
+    id: uuid
+    name: string
+    description: string | null
+    meetingId: string
+    imageUrl: string | null
+    welcomeMessage: string | null
+    maxParticipants: integer | null
+    record: boolean
+    autoStartRecording: boolean
+    muteOnStart: boolean
+    webcamsOnlyForModerator: boolean
+    meetingLayout: string
+    guestPolicy: string
+    disabledFeatures: string[] | null
+    status: enum [active, inactive]
+    createdBy:
+      id: uuid
+      firstName: string
+      lastName: string
+    createdAt: string (ISO 8601)
+    updatedAt: string (ISO 8601)
+
+  RoomStatusResponse:
+    isRunning: boolean
+    participantCount: integer
+    moderatorCount: integer
+    listenerCount: integer
+    voiceParticipantCount: integer
+    videoCount: integer
+    hasUserJoined: boolean
+    recording: boolean
+    startTime: integer | null (Unix ms)
+    duration: integer (seconds)
+
+# ─── Error Responses ───
+
+errors:
+  401: Missing or invalid Bearer token
+  403: Insufficient role for this operation
+  404: Room not found
+  422: Validation error (invalid DTO fields)
+  502: BBB server error (unreachable or returned FAILED)
