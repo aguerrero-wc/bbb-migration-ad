@@ -1,75 +1,86 @@
-# Agente 6: DEVOPS / INFRASTRUCTURE — Docker + Nginx + CI
+# Agente 6: DevOps — Docker + Nginx + CI
 
-## Proyecto
-BBB Meeting Management System — construyes la infraestructura Docker, Docker Compose, Nginx y configuraciones de CI/CD.
-
-## AUDITORÍA EXTERNA — OBLIGATORIO
-TODA tu infraestructura será auditada por agentes basados en **OpenAI Codex GPT-5.x**. Esto significa:
-- Otra IA revisará cada Dockerfile, config de Compose, y configuración de Nginx que escribas.
-- Se evaluará: imágenes mínimas (no base images innecesariamente grandes), multi-stage builds correctos, health checks funcionales, no secrets en layers de Docker, network isolation real, y non-root users.
-- Dockerfiles con `RUN npm install` sin `.dockerignore`, imágenes sin health checks, containers corriendo como root, o secrets en ENV de Dockerfile serán rechazados.
-- La infraestructura es la base de todo. Si Docker falla, nada funciona.
-
-## Tech Stack
-- Docker con multi-stage builds
-- Docker Compose (3 perfiles: prod, dev, test)
-- Nginx como reverse proxy
-- PostgreSQL 16 (containerizado)
-- Node.js 20 Alpine como imagen base
-
-## Arquitectura
-```
-infra/
-├── CLAUDE.md
-├── docker/
-│   ├── frontend.Dockerfile      # Multi-stage: build + nginx serve
-│   ├── backend.Dockerfile        # Multi-stage: build + node runtime
-│   └── nginx.Dockerfile          # Nginx custom con config
-├── nginx/
-│   ├── nginx.conf                # Config principal de nginx
-│   └── conf.d/
-│       ├── default.conf          # Routes: / -> frontend, /api -> backend
-│       └── ssl.conf              # Template SSL (producción)
-```
-
-Archivos en root que también controlas:
-```
-./docker-compose.yml              # Producción
-./docker-compose.dev.yml          # Desarrollo (hot reload)
-./docker-compose.test.yml         # Testing (DB efímera)
-```
+## Rol
+Eres el Agente DevOps del proyecto BBB Meeting Management System. Tu dominio es infraestructura: Docker multi-stage builds, Docker Compose (dev y prod), Nginx reverse proxy, y scripts de operaciones.
 
 ## File Ownership
-Eres dueño de:
-- TODOS los archivos en `infra/`
-- `./docker-compose.yml`, `./docker-compose.dev.yml`, `./docker-compose.test.yml` en la raíz
+Tu puedes crear y modificar SOLO estos archivos:
+- `infra/docker/` — Dockerfiles (backend.Dockerfile, frontend.Dockerfile)
+- `infra/nginx/` — Configuracion Nginx (nginx.conf, conf.d/)
+- `infra/docker-compose.dev.yml` — Compose desarrollo (contexto: desde infra/)
+- `infra/docker-compose.yml` — Compose produccion (contexto: desde repo root)
+- `infra/dev.sh` — Script de operaciones
 
-NO modificas: `frontend/src/`, `backend/src/`, `testing/`
+NO modificas: `frontend/src/`, `backend/src/`, `testing/`, `docs/`
 
-## Servicios
-| Servicio | Puerto | Imagen |
-|----------|--------|--------|
-| nginx | 80, 443 | nginx custom |
-| frontend | 3000 | node:20-alpine |
-| backend | 4000 | node:20-alpine |
-| postgres | 5432 | postgres:16-alpine |
+## Comandos dev.sh
+Ejecutar desde `infra/`:
+```
+./dev.sh start     # Build + up -d (espera Postgres healthy)
+./dev.sh stop      # docker compose down
+./dev.sh restart   # docker compose restart
+./dev.sh logs [svc] # Logs -f (opcional: backend, frontend, postgres)
+./dev.sh ssh [svc]  # Shell en container (default: backend)
+./dev.sh migrate   # Ejecutar migraciones TypeORM
+./dev.sh seed      # Ejecutar seeders
+./dev.sh fresh     # DANGER: schema:drop + migrate + seed
+./dev.sh test backend|frontend  # Tests dentro del container
+./dev.sh ps        # Estado de servicios
+./dev.sh nuke      # ☢️ NUCLEAR: down -v + build --no-cache + force-recreate (SOLO dev, NUNCA prod)
+```
 
-## Estándares
-- Todos los containers deben tener health checks
-- Volúmenes nombrados para persistencia de PostgreSQL
-- Aislamiento de red: frontend/backend en `app-network`, backend/postgres en `db-network`
-- Variables de entorno via archivo `.env` (docker-compose env_file)
-- No secrets en imágenes Docker
-- Multi-stage builds para minimizar tamaño de imagen
-- Usuario non-root en todos los containers
+## Arquitectura Docker
 
-## Dependencias de Otros Agentes
-- `frontend/package.json` debe existir para frontend Dockerfile
-- `backend/package.json` debe existir para backend Dockerfile
-- Ambos deben tener script `npm run build` definido
+### Backend Dockerfile (`docker/backend.Dockerfile`)
+4 stages, base image `node:22.21.0-bookworm-slim`:
+1. **base** — WORKDIR /usr/src/app, instala dumb-init
+2. **development** — npm install (con devDeps), CMD `npm run start:dev`
+3. **builder** — npm ci + build + prune --production
+4. **production** — Copia dist/ y node_modules, USER node, dumb-init entrypoint, CMD `node dist/main.js`
 
-## Quality Gates
-- `docker compose up` debe funcionar desde estado limpio
-- `docker compose -f docker-compose.dev.yml up` debe tener hot reload
-- Health checks deben pasar para todos los servicios
-- Tamaño total de imágenes < 500MB combinado
+### Frontend Dockerfile (`docker/frontend.Dockerfile`)
+4 stages, base image `node:22.21.0-bookworm-slim`:
+1. **base** — WORKDIR /app, instala dumb-init
+2. **development** — npm install, CMD `npm run dev -- --host`, EXPOSE 5173
+3. **builder** — npm ci + build
+4. **production** — nginx:stable-alpine, copia dist a /usr/share/nginx/html, EXPOSE 80
+
+### Docker Compose Dev (`docker-compose.dev.yml`)
+- Ejecutado desde `infra/`, contextos relativos a `../backend` y `../frontend`
+- Targets: `development` stage
+- Bind mounts para hot reload (src/, config files)
+- Volume anonimo para node_modules (evita pisar el del container)
+- Postgres healthcheck con pg_isready
+
+### Docker Compose Prod (`docker-compose.yml`)
+- Ejecutado desde repo root
+- Incluye servicio `nginx` como reverse proxy (puerto 80)
+- Sin bind mounts, builds completos
+- Postgres sin defaults (requiere .env)
+
+## Puertos
+- Definidos en `../.env` (ver `../.env.example` para referencia)
+- Mapeados en `docker-compose.dev.yml` y `docker-compose.yml`
+- NO hardcodear puertos — usar variables de entorno del .env
+
+## Nginx
+- Configuracion: `nginx/conf.d/default.conf` (rutas, upstreams, security headers)
+- Config SPA: `nginx/conf.d/frontend.conf` (try_files, cache de assets)
+- Rutas y upstreams definidos en esos archivos — NO duplicar aqui
+
+## Archivo .env
+- Ubicacion: raiz del repo (`../.env` relativo a infra/)
+- NUNCA se commitea (esta en .gitignore)
+- Variables documentadas en `../.env.example`
+- `dev.sh` valida su existencia antes de arrancar
+- Docker Compose lo inyecta via `--env-file` (dev) o `env_file:` (prod)
+
+## Convenciones
+- Dockerfiles usan multi-stage builds — SIEMPRE mantener stages separados (dev/build/prod)
+- Imagen base de backend: `node:22.21.0-bookworm-slim` (no Alpine, por compatibilidad con dumb-init via apt)
+- Imagen base de frontend prod: `nginx:stable-alpine`
+- Usar `dumb-init` como entrypoint en produccion para manejo correcto de signals
+- Produccion: USER node (no root), HEALTHCHECK obligatorio
+- Compose dev: siempre usar bind mounts + volume anonimo para node_modules
+- No usar `latest` tags en imagenes base
+- Nombres de containers solo en produccion compose (no en dev, para permitir multiples instancias)

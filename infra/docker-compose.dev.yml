@@ -1,0 +1,71 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-bbb_dev}
+    ports:
+      - "${POSTGRES_PORT:-5429}:5432"
+    volumes:
+      - postgres_dev_data_bbb_project:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-bbb_dev}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ../backend # <--- Contexto: La carpeta del Agente Backend
+      dockerfile: ../infra/docker/backend.Dockerfile # <--- Dockerfile: Path relativo al context
+      target: development
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      NODE_ENV: development
+      DB_HOST: postgres
+      DB_USERNAME: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      DB_DATABASE: ${POSTGRES_DB:-bbb_dev}
+    ports:
+      - "${BACKEND_PORT:-4002}:4000"
+      - "9229:9229" # Debug
+    volumes:
+      # Montamos el código local para Hot Reload
+      - ../backend/src:/usr/src/app/src
+      - ../backend/nest-cli.json:/usr/src/app/nest-cli.json
+      - ../backend/tsconfig.json:/usr/src/app/tsconfig.json
+      - ../backend/package.json:/usr/src/app/package.json
+      # Evitamos pisar node_modules del contenedor con el local
+      - /usr/src/app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ../frontend # <--- Contexto: La carpeta del Agente Frontend
+      dockerfile: ../infra/docker/frontend.Dockerfile # <--- Dockerfile: Path relativo al context
+      target: development
+    container_name: bbb-frontend-dev
+    restart: unless-stopped
+    env_file: ../.env
+    ports:
+      - "${FRONTEND_PORT:-5107}:5173"
+    volumes:
+      - ../frontend/src:/app/src
+      - ../frontend/public:/app/public
+      - ../frontend/index.html:/app/index.html
+      - ../frontend/vite.config.ts:/app/vite.config.ts
+      - ../frontend/package.json:/app/package.json
+      - /app/node_modules
+    # Vite necesita saber que corre en docker
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+
+volumes:
+  postgres_dev_data_bbb_project:
+    driver: local
