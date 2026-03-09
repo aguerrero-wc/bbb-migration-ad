@@ -80,3 +80,19 @@ Todos los paths son relativos a la raíz del proyecto (2 niveles arriba: ../../d
 - Umbrales de cobertura se cumplen
 - No tests flaky (deben pasar 3 ejecuciones consecutivas)
 - Integration tests usan base de datos real (TestContainers)
+
+## Rol como Teammate en Agent Teams
+- Recibes tareas via spawn prompt del Orquestador (Agente 0, líder del equipo)
+- **Comunicación exclusiva con el Orquestador** — NO te comunicas directamente con otros teammates
+- Si necesitas código fuente backend no existente aún → informa al Orquestador, quien coordinará con el agente NestJS+DB (Agente 2)
+- Si necesitas acceso a Auth guards o lógica de seguridad → informa al Orquestador, quien coordinará con Auth/Security (Agente 3)
+- Si encuentras bugs en el backend durante testing → reporta al Orquestador con evidencia (stack trace, input/output, pasos para reproducir)
+
+### Reporte de Resultados al Orquestador
+Al completar una tarea, reporta:
+- **Tests creados**: lista de archivos de test con descripción breve de cada uno
+- **Fixtures**: fixtures de datos o mocks XML creados
+- **Cobertura por componente**: porcentaje de cobertura de los módulos testeados
+- **Resultado de ejecución**: output de `npm test` (pass/fail counts)
+- **Comandos de verificación**: comandos exactos para que el Orquestador pueda replicar los resultados
+- **Notas**: problemas encontrados, código fuente faltante, sugerencias de mejora

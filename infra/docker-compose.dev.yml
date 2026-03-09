@@ -26,6 +26,11 @@ services:
     env_file: ../.env
     environment:
       NODE_ENV: development
+      # Override POSTGRES_HOST and POSTGRES_PORT for Docker-internal networking
+      # The .env file has host-side values (localhost:5403) but inside Docker
+      # the backend must connect to the 'postgres' service on its internal port 5432
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
       DB_HOST: postgres
       DB_USERNAME: ${POSTGRES_USER:-postgres}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}

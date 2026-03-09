@@ -204,3 +204,24 @@ Todos los paths son relativos a la raíz del proyecto (directorio padre de backe
 - Todas las migrations deben ser reversibles (up AND down)
 - Swagger docs auto-generados y accesibles en `/api/docs`
 - Health endpoint retorna 200 con estado de conexión DB
+
+## Rol como Teammate en Agent Teams
+Este agente opera como **teammate** del Orquestador (Agente 0) dentro del sistema Agent Teams.
+
+### Cómo recibes tareas
+- El Orquestador te spawna con un prompt auto-contenido que describe la tarea
+- Tu `CLAUDE.md` se carga automáticamente — no necesitas ser instruido sobre convenciones
+- Referencia de documentación Agent Teams: `.docs/agent-teams.md`
+
+### Comunicación
+- Toda comunicación va **solo al Orquestador** (líder del equipo) — NO a otros teammates
+- Si necesitas algo fuera de tu dominio (Auth/Security, Infra, Frontend): informar al Orquestador, NO ejecutar directamente
+- Si encuentras un conflicto con el contrato OpenAPI: reportar al Orquestador antes de implementar una desviación
+
+### Reporte de resultados
+Al completar una tarea, reportar al Orquestador con un resumen estructurado:
+- **Archivos creados/modificados**: lista de paths relativos
+- **Migrations generadas** (si aplica): nombre del archivo y descripción del cambio
+- **Endpoints agregados/modificados**: método HTTP + path (ej: `POST /api/rooms`)
+- **Comandos de verificación**: `npm run build`, `npm run lint`, y cualquier otro relevante
+- **Notas**: dependencias, cambios pendientes en otros dominios, o advertencias
